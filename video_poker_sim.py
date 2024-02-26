@@ -114,7 +114,7 @@ RETURNS_KEYS2 = list(RETURNS_DBJoB.keys())
 RETURNS_TDBJoB = {
     "RF": 800,
     "4KA_2_4": 800,
-    "4K2_4_A": 400,
+    "4K2_4_A_4": 400,
     "4KA": 160,
     "4K2_4": 80,
     "4K": 50,
@@ -304,7 +304,7 @@ def is_4ka_2_4(group):
     return condition
 
 
-def is_4k2_4_a(group):
+def is_4k2_4_a_4(group):
     condition = False
     if (
         group["d_vals"].count(0) == 3
@@ -321,7 +321,7 @@ def is_4k2_4_a(group):
             )
         )
         and group["vals"][2] in (2, 3, 4)
-        and group["vals"][4] == 14
+        and (group["vals"][4] == 14 or group["vals"][4] <= 4)
     ):
         condition = True
     return condition
@@ -447,7 +447,7 @@ class VideoPokerSimulation(object):
                 "RF": 0,
                 "SF": 0,
                 "4KA_2_4": 0,
-                "4K2_4_A": 0,
+                "4K2_4_A_4": 0,
                 "4KA": 0,
                 "4K2_4": 0,
                 "4K": 0,
@@ -842,8 +842,8 @@ class VideoPokerSimulation(object):
             self.group[index]["type"] = "RF"
         elif is_4ka_2_4(self.group[index]):
             self.group[index]["type"] = "4KA_2_4"
-        elif is_4k2_4_a(self.group[index]):
-            self.group[index]["type"] = "4K2_4_A"
+        elif is_4k2_4_a_4(self.group[index]):
+            self.group[index]["type"] = "4K2_4_A_4"
         elif is_4ka(self.group[index]):
             self.group[index]["type"] = "4KA"
         elif is_4k2_4(self.group[index]):
@@ -976,8 +976,9 @@ class VideoPokerSimulation(object):
 
             if self.exit == "t" and self.num_steps / 720 >= 1:
                 break
-            elif self.exit == "r" and self.max_ret >= 25 * self.cost:
-                break
+            elif self.exit == "r":
+                if self.max_ret >= 50 * self.cost:
+                    break
             elif (
                 self.exit == "p" and self.max_group["profit"] > 0.2 * self.init_balance
             ):
