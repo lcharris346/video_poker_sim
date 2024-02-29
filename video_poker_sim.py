@@ -85,7 +85,7 @@ RETURNS_JoB = {
     "RF": 800,
     "SF": 50,
     "4K": 25,
-    "FH": 6,
+    "FH": 9,
     "F": 5,
     "S": 4,
     "3K": 3,
@@ -101,7 +101,7 @@ RETURNS_DBJoB = {
     "4K2_4": 80,
     "4K": 50,
     "SF": 50,
-    "FH": 7,
+    "FH": 9,
     "F": 5,
     "S": 4,
     "3K": 3,
@@ -119,7 +119,7 @@ RETURNS_TDBJoB = {
     "4K2_4": 80,
     "4K": 50,
     "SF": 50,
-    "FH": 7,
+    "FH": 9,
     "F": 5,
     "S": 4,
     "3K": 2,
@@ -160,17 +160,18 @@ FOUR_TO_A_FLUSH = [0, 0, 0]
 THREE_TO_A_FLUSH = [0, 0]
 
 THREE_TO_RF = (
-    range(11, 14),
-    range(10, 13),
-    range(9, 12),
-    range(8, 11),
-    range(7, 10),
-    range(6, 9),
-    range(5, 8),
-    range(4, 7),
-    range(3, 6),
-    range(2, 5),
-    range(1, 4),
+    [10,11,12],
+    [10,11,13],
+    [10,11,14],
+    [10,12,13],
+    [10,12,14],
+    [10,13,14],
+    [11,13,14],
+    [12,13,14],
+    [11,12,13],
+    [11,12,14],
+    [11,13,14],
+    [12,13,14],
 )
 
 
@@ -198,6 +199,18 @@ SUPER_T_TIMER = list(range(15))
 SUPER_T_MULTIPLER = list([2, 2, 2, 2, 2, 3, 4, 5, 8, 10])
 
 MULTIPLER_OPTIONS = ("supt", "ultx")
+
+# SAMPLE INPUTS
+GROUP_RF = ["10Ts", "11Js", "12Qs", "13Ks", "14As"]
+GROUP_SF = ["022s", "033s", "044s", "055s", "066s"]
+GROUP_ALSF = ["14As", "022s", "033s", "044s", "055s"]
+GROUP_4K = ["022s", "022h", "022d", "022c", "055d"]
+GROUP_FH = ["022s", "022h", "022d", "055h", "055d"]
+GROUP_F = ["022s", "033s", "044s", "055s", "077s"]
+GROUP_S = ["022s", "033s", "044s", "055s", "066h"]
+GROUP_3K = ["022s", "022h", "022d", "055h", "088d"]
+GROUP_2P = ["022s", "022h", "055s", "055h", "088d"]
+GROUP_JoB = ["11Js", "11Jh", "055s", "077h", "088d"]
 
 
 # FUNCTIONS
@@ -386,38 +399,24 @@ def is_job(group):
     return condition
 
 
-# SAMPLE INPUTS
-GROUP_RF = ["10Ts", "11Js", "12Qs", "13Ks", "14As"]
-GROUP_SF = ["022s", "033s", "044s", "055s", "066s"]
-GROUP_ALSF = ["14As", "022s", "033s", "044s", "055s"]
-GROUP_4K = ["022s", "022h", "022d", "022c", "055d"]
-GROUP_FH = ["022s", "022h", "022d", "055h", "055d"]
-GROUP_F = ["022s", "033s", "044s", "055s", "077s"]
-GROUP_S = ["022s", "033s", "044s", "055s", "066h"]
-GROUP_3K = ["022s", "022h", "022d", "055h", "088d"]
-GROUP_2P = ["022s", "022h", "055s", "055h", "088d"]
-GROUP_JoB = ["11Js", "11Jh", "055s", "077h", "088d"]
-
-HIGH_HANDS = ("4KA", "4K2_4", "4K5_K", "SF", "RF")
-
-
 # MAIN CLASS
 class VideoPokerSimulation(object):
     def __init__(self, args):
         self.debug = args.debug
         self.alg = args.alg
         self.game = args.game
-        self.balance = args.money
-        self.cost = args.cost
-        self.nhands = args.nhands
+        self.balance = round(args.stack,2)
+        self.bet_denom = round(args.bet_denom,2)
+        self.hands = args.hands
         self.plot = args.plot
         self.multi = args.multi
         self.exit = args.exit
-        self.max_balance = copy.deepcopy(args.money)
-        self.max_increase_pct = 1
-        self.init_balance = copy.deepcopy(args.money)
+        self.reduce_bet = args.reduce_bet
+        self.max_balance = copy.deepcopy(args.stack)
+        self.init_balance = copy.deepcopy(args.stack)
         self.shuffled_cards = None
         self.group = {}
+        self.prev_group = {}
         self.group[0] = {
             "cards": [],
             "vals": [],
@@ -428,7 +427,7 @@ class VideoPokerSimulation(object):
             "ret": 0,
             "multi": 1,
         }
-        for i in range(1, self.nhands):
+        for i in range(1, self.hands):
             self.group[i] = copy.deepcopy(self.group[0])
         self.keep = None
         self.max_ret = 0
@@ -441,9 +440,7 @@ class VideoPokerSimulation(object):
             "s1": self.algorithm_strategy1,
         }
         self.algorithm = self.algorithms[self.alg]
-
-        if self.game == "tdb":
-            self.hist = {
+        self.hist = {
                 "RF": 0,
                 "SF": 0,
                 "4KA_2_4": 0,
@@ -458,36 +455,13 @@ class VideoPokerSimulation(object):
                 "2P": 0,
                 "JoB": 0,
             }
-        elif self.game == "db":
-            self.hist = {
-                "RF": 0,
-                "SF": 0,
-                "4KA": 0,
-                "4K2_4": 0,
-                "4K": 0,
-                "FH": 0,
-                "F": 0,
-                "S": 0,
-                "3K": 0,
-                "2P": 0,
-                "JoB": 0,
-            }
-        elif self.game == "job":
-            self.hist = {
-                "RF": 0,
-                "SF": 0,
-                "4K": 0,
-                "FH": 0,
-                "F": 0,
-                "S": 0,
-                "3K": 0,
-                "2P": 0,
-                "JoB": 0,
-            }
 
         self.num_steps = 0
-        self.y = [0] * 100000
-        random.seed()
+        self.prev_balance = 0
+        self.balance_list = [0] * 100000
+        self.delta_balance_list = [0] * 100000
+        self.init_bet_denom = self.bet_denom
+        
 
     def algorith_input(self):
         keep = input("Algorithm Input: Keep: ")
@@ -586,34 +560,48 @@ class VideoPokerSimulation(object):
             # Check for 3 to a Royal Flush
             elif (
                 self.group[0]["vals"][:3] in THREE_TO_RF
-                and self.group[0]["cats"][:2] == THREE_TO_A_FLUSH
+                and self.group[0]["d_cats"][:2] == THREE_TO_A_FLUSH
             ):
                 keep = "123"
             elif (
                 self.group[0]["vals"][1:4] in THREE_TO_RF
-                and self.group[0]["cats"][1:3] == THREE_TO_A_FLUSH
+                and self.group[0]["d_cats"][1:3] == THREE_TO_A_FLUSH
             ):
                 keep = "234"
             elif (
                 self.group[0]["vals"][2:] in THREE_TO_RF
-                and self.group[0]["cats"][2:] == THREE_TO_A_FLUSH
+                and self.group[0]["d_cats"][2:] == THREE_TO_A_FLUSH
             ):
                 keep = "345"
 
             # Check for High Value Items
             else:
                 num_cards = 0
+                suits = []
+                vals = []
                 for i, card in enumerate(self.group[0]["cards"]):
                     if CARDS[card]["val"] > 10:
                         keep += str(i + 1)
                         num_cards += 1
+                        suits.append(self.group[0]["cats"][i])
+                        vals.append(self.group[0]["vals"][i])
 
-                if len(keep) > 2:
-                    keep = keep[-2:]
+                if len(keep) == 3:
+                    #print("Debug: 3 High Cards:", vals, suits)
+                    if (suits[1] == suits[2]) or (vals[2] - vals[1]) == 1:
+                        keep = keep[1] + keep[2]
+                    elif suits[0] == suits[2]:
+                        keep = keep[0] + keep[2]
+                    else:
+                        keep = keep[0] + keep[1]
 
         return keep
 
     def deal(self):
+        
+        # Bet Payment
+        self.prev_balance = copy.deepcopy(self.balance)
+        self.balance = self.balance - self.hands * self.bet_denom
 
         if self.keep in QUIT:
             return
@@ -623,6 +611,8 @@ class VideoPokerSimulation(object):
 
         self.shuffled_cards = copy.deepcopy(cards[:10])
         self.group[0]["cards"] = copy.deepcopy(self.shuffled_cards[:5])
+
+        
 
         if self.alg in ("s1",):
             self.group[0]["cards"].sort()
@@ -644,7 +634,7 @@ class VideoPokerSimulation(object):
 
         # multiple
         self.other_shuffled_cards = {}
-        for index in range(1, self.nhands):
+        for index in range(1, self.hands):
             shuffled_cards_5_52 = copy.deepcopy(cards[5:])
             random.shuffle(shuffled_cards_5_52)
             self.group[index]["cards"] = copy.deepcopy(self.group[0]["cards"])
@@ -652,13 +642,13 @@ class VideoPokerSimulation(object):
                 self.group[index]["cards"] + shuffled_cards_5_52[:5]
             )
 
-        self.balance = self.balance - self.nhands * self.cost
+        
 
     def update_multiplier(self):
 
         if self.multi == "supt":
 
-            self.balance = self.balance - self.cost * self.nhands * 0.2
+            self.balance = self.balance - self.bet_denom * self.hands * 0.2
             if self.balance <= 0:
                 return
             multipler = 1
@@ -675,14 +665,14 @@ class VideoPokerSimulation(object):
 
                 multipler = SUPER_T_MULTIPLER[-1]
 
-            for index in range(self.nhands):
+            for index in range(self.hands):
                 self.group[index]["multi"] = multipler
 
         elif self.multi == "ultx":
-            self.balance = self.balance - self.cost * self.nhands
+            self.balance = self.balance - self.bet_denom * self.hands
             if self.balance <= 0:
                 return
-            for index in range(self.nhands):
+            for index in range(self.hands):
                 self.group[index]["multi"] = 1
                 if self.group[index]["type"] in ULTIMATE_X_MULTIPLIER:
                     self.group[index]["multi"] = ULTIMATE_X_MULTIPLIER[
@@ -719,7 +709,7 @@ class VideoPokerSimulation(object):
             if card_str not in self.keep:
                 self.group[0]["cards"][card - 1] = self.shuffled_cards[next_card]
 
-                for i in range(1, self.nhands):
+                for i in range(1, self.hands):
                     self.group[i]["cards"][card - 1] = self.other_shuffled_cards[i][
                         next_card
                     ]
@@ -740,7 +730,7 @@ class VideoPokerSimulation(object):
             for i, x in enumerate(self.group[0]["cats"])
         ][1:]
 
-        for i in range(1, self.nhands):
+        for i in range(1, self.hands):
 
             self.group[i]["cards"].sort()
             self.group[i]["vals"] = [CARDS[x]["val"] for x in self.group[i]["cards"]]
@@ -789,11 +779,11 @@ class VideoPokerSimulation(object):
         elif is_job(self.group[index]):
             self.group[index]["type"] = "JoB"
 
-        if self.group[index]["type"] in RETURNS_KEYS:
+        if self.group[index]["type"] in RETURNS_KEYS3:
             self.group[index]["ret"] = (
                 self.group[index]["multi"]
                 * RETURNS_JoB[self.group[index]["type"]]
-                * self.cost
+                * self.bet_denom
             )
             self.hist[self.group[index]["type"]] += 1
 
@@ -825,11 +815,11 @@ class VideoPokerSimulation(object):
         elif is_job(self.group[index]):
             self.group[index]["type"] = "JoB"
 
-        if self.group[index]["type"] in RETURNS_KEYS2:
+        if self.group[index]["type"] in RETURNS_KEYS3:
             self.group[index]["ret"] = (
                 self.group[index]["multi"]
                 * RETURNS_DBJoB[self.group[index]["type"]]
-                * self.cost
+                * self.bet_denom
             )
             self.hist[self.group[index]["type"]] += 1
 
@@ -869,18 +859,17 @@ class VideoPokerSimulation(object):
             self.group[index]["ret"] = (
                 self.group[index]["multi"]
                 * RETURNS_TDBJoB[self.group[index]["type"]]
-                * self.cost
+                * self.bet_denom
             )
             self.hist[self.group[index]["type"]] += 1
 
     def analyze(self, index):
+
+        # Update Balance
+        
         self.balance += self.group[index]["ret"]
         if self.balance > self.max_balance:
             self.max_balance = self.balance
-
-        increase_pct = self.balance / self.init_balance
-        if increase_pct > self.max_increase_pct:
-            self.max_increase_pct = increase_pct
 
         if self.group[index]["ret"] > self.max_ret:
             self.max_group = copy.deepcopy(self.group[index])
@@ -902,7 +891,7 @@ class VideoPokerSimulation(object):
             )
 
     def bet(self):
-        self.y[self.num_steps] = self.balance
+        self.balance_list[self.num_steps] = self.balance
         self.num_steps += 1
 
         if self.multi in MULTIPLER_OPTIONS:
@@ -918,7 +907,7 @@ class VideoPokerSimulation(object):
         if self.keep in QUIT:
             return
 
-        for index in range(self.nhands):
+        for index in range(self.hands):
             if self.game == "tdb":
                 self.evaluate_db(index)
             elif self.game == "db":
@@ -926,6 +915,8 @@ class VideoPokerSimulation(object):
             elif self.game == "job":
                 self.evaluate_job(index)
             self.analyze(index)
+
+        self.delta_balance_list[self.num_steps] = self.balance - self.prev_balance
 
         if self.debug or self.alg == "i":
             print(
@@ -935,6 +926,14 @@ class VideoPokerSimulation(object):
                     self.balance,
                 )
             )
+
+        # Adjust bet based on balance
+        if self.reduce_bet == True:
+            if (self.bet_denom > 0.1*self.balance) and (self.bet_denom > 0.05):
+                self.bet_denom = round(self.bet_denom - 0.05,2)
+                print("New Bet Denom:", self.bet_denom)
+
+        self.prev_group = copy.deepcopy(self.group)
 
     def gen_plot(self):
 
@@ -946,67 +945,82 @@ class VideoPokerSimulation(object):
         # fig, ax = plt.subplots()
 
         x = list(range(0, self.num_steps))
-        y = self.y[0 : self.num_steps]
+        y = self.balance_list[0 : self.num_steps]
 
         axs[0].plot(x, y)
         axs[0].set_title("Balance vs Num Steps")
 
-        types = list(self.hist.keys())
-        frequency = list(self.hist.values())
+        #types = list(self.hist.keys())
+        #frequency = list(self.hist.values())
+        #axs[1].bar(types, frequency, color="maroon", width=0.4)
+        #axs[1].set_title("Counts vs Hand Type")
 
-        axs[1].bar(types, frequency, color="maroon", width=0.4)
-        axs[1].set_title("Counts vs Hand Type")
+        y2 = self.delta_balance_list[0 : self.num_steps]
 
-        # a = np.array(frequency)
-        # if self.game == "db":
-        # 	b = np.array(list(RETURNS_DBJoB.values()))
-        # elif self.game == "job":
-        # 	b = np.array(list(RETURNS_JoB.values()))
-
-        # returns = list(a*b)
-        # axs[1,1].bar(types, returns, color ='maroon', width = 0.4)
+        axs[1].plot(x, y2)
+        axs[1].set_title("Delta Balance vs Num Steps")
 
         plt.show()
 
     def play(self):
-
-        while (self.keep not in QUIT) and (self.balance >= self.nhands * self.cost):
+        random.seed()
+        while (self.keep not in QUIT) and (self.balance >= self.hands * self.bet_denom):
 
             self.bet()
 
-            if self.exit == "t" and self.num_steps / 720 >= 1:
-                break
-            elif self.exit == "r":
-                if self.max_ret >= 50 * self.cost:
+            # End Gaame based on exit condition
+            if self.exit == "t":
+                if self.num_steps >= 720:
                     break
-            elif (
-                self.exit == "p" and self.max_group["profit"] > 0.2 * self.init_balance
-            ):
-                break
+            elif self.exit == "r":
+                if self.max_ret >= 25 * self.bet_denom:
+                    break
+            elif self.exit == "b":
+                if (self.balance >= 1.2 * self.init_balance) or (self.balance <= 0.8 * self.init_balance):
+                    break
 
         if self.plot == True:
             self.gen_plot()
 
-        print(
-            "max_group",
-            self.max_group,
-            "\nhistogram",
-            self.hist,
-            "\nend_balance",
-            self.balance,
-            "\nmax_increase_pct",
-            self.max_increase_pct,
-            "\nnum_steps",
-            self.num_steps,
-            "\ntime_spent",
-            self.num_steps / 12,
-        )
+        
 
-
+        
 # MAIN FUNCTION
 def main(args):
     p4 = VideoPokerSimulation(args)
-    p4.play()
+    if args.mcruns > 1:
+        balance = 0.0
+        num_steps = 0.0
+        max_balance = 0
+        max_balance_num_steps = 0
+        for i in range(int(args.mcruns)):
+            p4.play()
+            balance   += p4.balance
+            num_steps += p4.num_steps
+            if p4.balance > max_balance:
+                max_balance = p4.balance
+                max_balance_num_steps = p4.num_steps
+            p4.__init__(args)
+        print(
+            "\nave_balance", balance/args.mcruns, 
+            "\nave_time_min", num_steps/args.mcruns/12.0, 
+            "\nmax_balance", max_balance, 
+            "\nmax_balance_time_min", max_balance_num_steps/12.0
+            )
+    else:
+        p4.play()
+        print(
+            "max_group",
+            p4.max_group,
+            "\nhistogram",
+            p4.hist,
+            "\nend_balance",
+            p4.balance,
+            "\nnum_steps",
+            p4.num_steps,
+            "\ntime_spent",
+            p4.num_steps / 12,
+        )
 
 # COMMAND-LINE EXECUTION
 if __name__ == "__main__":
@@ -1015,18 +1029,20 @@ if __name__ == "__main__":
         description="Simulation, Analyze, and Play Video Poker.",
     )
     parser.add_argument("-d", "--debug", action="store_true", help="Debug")
+    parser.add_argument("-r", "--reduce_bet", action="store_true", help="Reduce Bet based on Balance")
     parser.add_argument("-p", "--plot", action="store_true", help="Create Anaylsis Plots")
+    parser.add_argument("-z", "--mcruns", default=1, help="Run Z Monte Carlo Sims", type=int)
     parser.add_argument("-a", "--alg", default="s1", choices=["s1","r","d","k","i"], 
         help="Algorithm choice. r=random, k=hold all, d = discard all, i = user input, s1 = optimizate")
     parser.add_argument("-g", "--game", default="job", choices=["job","db","tdb"],
         help="Game. job: Jacks or Better, db: Double Bonus, tdb: Tripler Double Bonus")
-    parser.add_argument("-x", "--multi", default=None, choices=[None, "ultx","supt"],
+    parser.add_argument("-m", "--multi", default=None, choices=[None, "ultx","supt"],
         help="Multiplier Type. ultx: Ultimate X, supt: Super Times Pay")
-    parser.add_argument("-m", "--money", default=100, type=float, help="Enter balance in $")
-    parser.add_argument("-c", "--cost", default=0.05, type=float, help="Enter bet amount in $")
-    parser.add_argument("-n", "--nhands", default=10, type=int, help="Enter number of hands")
-    parser.add_argument("-e","--exit",default=None,choices=["t","r","p"],
-        help="Exit Condition. t: num-bets = 720, r:return >= 25*bet-amount, p:profit = 1.2*init-balance")
+    parser.add_argument("-s", "--stack", default=100, type=float, help="Enter balance in $")
+    parser.add_argument("-b", "--bet_denom", default=0.05, type=float, help="Enter bet amount in $")
+    parser.add_argument("-n", "--hands", default=10, type=int, help="Enter number of hands")
+    parser.add_argument("-e","--exit",default=None, choices=["t","r","b"],
+        help="Exit Condition. t: num-bets = 720, r:return >= 25*bet-amount, b: 0.8*stack < balance < 1.8*stack")
 
     args = parser.parse_args()
     if args.debug == True:
